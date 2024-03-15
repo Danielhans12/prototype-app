@@ -6,7 +6,10 @@ import { setupSectionToggle } from './toggleSections.js';
 import cog from '/cog.svg';
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth"; // Import createUserWithEmailAndPassword
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
+import { getFirestore, doc, setDoc } from "firebase/firestore";
+import { collection, query, orderBy, limit, addDoc, serverTimestamp, onSnapshot, deleteDoc, getDocs } from "firebase/firestore";
+
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
@@ -23,146 +26,53 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
-const auth = getAuth(); // Get the Auth object
+const auth = getAuth();
+const firestore = getFirestore();
 
-
-
-
-
-
-
-
-
+  // Real-time listener for chat messages
+  const messagesRef = collection(firestore, 'messages');
 
 
 
 
 document.querySelector('#app').innerHTML = `
-
-
 <section id="maincontent" class="authsuccess">
-
   <aside>
-  <button  class="sidebar-button sideba">
-    <img src="${cog}"/>
-  </button>
+    <button  class="sidebar-button sideba">
+      <img src="${cog}"/>
+    </button>
+    <button id="logoutButton">Logout</button>
 
-  <input type="file"/>
-  <input type="text" placeholder="Name"/>
-  <button id="createupdateprofile">Create/Update</button>
-  <button id="logoutButton">Logout</button>
+
   </aside>
-  <main>
-      <div class="Chatsection">
+  <main id="chatContainer">
+    <div class="Chatsection">
         <header>
-          <button id="toside" class="sidebar-button sideba">
-            <img src="${cog}"/>
-          </button>
-          <h2>Messages</h2>
+            <button id="toside" class="sidebar-button sideba">
+                <img src="${cog}"/>
+            </button>
+            <h2>Messages</h2>
         </header>
-        <div class="searchuser" id="searchfuncuser">
-            <input type="text" id="searchvalueuser" placeholder="Search" class="searchuwu">
-        </div>
-        <div class="listofconvos" id="conversationdisplay">
 
+        <div class="listofconvosparent">
+            <div class="listofconvossub">
+                <span id="messagesContainer" class="listofconvos"></span>
+            </div>
         </div>
-      </div>
-
+    </div>
   </main>
- </section>
-<section id="authentication" class="authsect">
-    <h1>Login</h1>
-    <div id="authForm">
-        <input type="email" id="emailInput" placeholder="Email">
-        <input type="password" id="passwordInput" placeholder="Password">
-        <button id="authlog">Login</button>
-        <h3 id="loginButton">Not Yet Registered?</h3>
-
-    </div>
 </section>
 
-<section id="signupSection" class="signup">
-    <h1>Sign Up</h1>
-    <div id="authForm">
-        <input type="email" id="emailInputsignup" placeholder="Email">
-        <input type="password" id="passwordInputsignup" placeholder="Password">
-        <button id="authreg">Sign Up</button> <!-- Changed the button text to "Sign Up" -->
-        <h3 id="signups">Already have an account?</h3> <!-- Fixed typo -->
-    </div>
-</section>
 <section id="welcomepage" class="welcome">
-    <h1>Chat App</h1>
-    <button id="startButton" class="startbutt">Start Now</button>
-    <div class="wave"></div>
+  <h1>Chat App</h1>
+  <button id="googleSignInButton" class="startbutt">Sign in with Google</button>
+  <div class="wave"></div>
+  <div class="wave"></div>
+  <div class="wave"></div>
 </section>
 `;
-setupSectionToggle();
 
 
-// Add event listener for sign-up button
-// Add event listener for sign-up button
-const signUpButton = document.getElementById('authreg');
-signUpButton.addEventListener('click', () => {
-    const email = document.getElementById('emailInputsignup').value; // Get email input value
-    const password = document.getElementById('passwordInputsignup').value; // Get password input value
-
-    // Check if the user is already logged in
-    if (auth.currentUser) {
-        // User is already signed in, show alert or message
-        alert('You are already signed up.');
-        return; // Exit the function
-    }
-
-    createUserWithEmailAndPassword(auth, email, password) // Create user with email and password
-        .then((userCredential) => {
-            // User signed up successfully
-            const user = userCredential.user;
-            console.log('User signed up:', user);
-            // Hide authentication sections and show auth success section
-            document.getElementById('authentication').style.display = 'none';
-            document.getElementById('signupSection').style.display = 'none';
-            document.querySelector('.authsuccess').style.display = 'block';
-        })
-        .catch((error) => {
-            // Handle errors
-            const errorCode = error.code;
-            const errorMessage = error.message;
-            console.error('Sign-up error:', errorMessage);
-            // Add code to display error message to user
-        });
-});
-
-// Select the login button
-const loginButton = document.getElementById('authlog');
-
-// Add an event listener to the login button
-loginButton.addEventListener('click', () => {
-    // Get the email and password input values
-    const email = document.getElementById('emailInput').value;
-    const password = document.getElementById('passwordInput').value;
-
-    // Sign in the user with email and password
-    signInWithEmailAndPassword(auth, email, password)
-        .then((userCredential) => {
-            // Signed in successfully
-            const user = userCredential.user;
-            console.log('User signed in:', user);
-            alert('you successfully log in!');
-            // Hide authentication sections and show auth success section
-            document.getElementById('authentication').style.display = 'none';
-            document.getElementById('signupSection').style.display = 'none';
-            document.querySelector('.authsuccess').style.display = 'block';
-            // Add code to navigate to chat page or perform other actions upon successful login
-        })
-        .catch((error) => {
-            // Handle login errors
-            const errorCode = error.code;
-            const errorMessage = error.message;
-            console.error('Login error:', errorMessage);
-            alert('wrong password hahaha');
-            // Add code to display error message to the user
-        });
-});
 
 document.addEventListener('DOMContentLoaded', () => {
   const sideButtons = document.querySelectorAll('.sidebar-button');
@@ -182,19 +92,144 @@ document.addEventListener('DOMContentLoaded', () => {
       });
   });
 });
+//Add event listener for Google sign-in button
+const googleSignInButton = document.getElementById('googleSignInButton');
+
+googleSignInButton.addEventListener('click', () => {
+    const provider = new GoogleAuthProvider();
+    
+    signInWithPopup(auth, provider)
+        .then((result) => {
+            const credential = GoogleAuthProvider.credentialFromResult(result);
+            const token = credential.accessToken;
+            const user = result.user;
+
+            console.log('Google sign-in successful:', user);
+
+            // Display the maincontent section
+            document.getElementById('maincontent').style.display = 'block';
+
+            // Hide the welcomepage section
+            document.getElementById('welcomepage').style.display = 'none';
+        })
+        .catch((error) => {
+            const errorCode = error.code;
+            const errorMessage = error.message;
+            const email = error.email;
+            const credential = GoogleAuthProvider.credentialFromError(error);
+            console.error('Google sign-in error:', errorMessage);
+        });
+});
+
+
+// Function to render chat messages
+function renderChatMessage(message) {
+    const { text, uid, photoURL } = message;
+    const messageClass = uid === auth.currentUser.uid ? 'sent' : 'received';
+  
+    const messageDiv = document.createElement('div');
+    messageDiv.classList.add('message', messageClass);
+    messageDiv.innerHTML = `
+      <img src="${photoURL || 'https://api.adorable.io/avatars/23/abott@adorable.png'}" />
+      <p>${text}</p>
+    `;
+  
+    return messageDiv;
+  }
+  // Function to render chat room
+function renderChatRoom(messages) {
+    const messagesContainer = document.getElementById('messagesContainer');
+    messagesContainer.innerHTML = '';
+  
+    messages.forEach(message => {
+      const messageElement = renderChatMessage(message);
+      messagesContainer.appendChild(messageElement);
+    });
+  
+    // Scroll to bottom
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+  }
+
+  const allMessagesQuery = query(messagesRef);
+  async function deleteOldestMessageIfExceedsLimit() {
+    try {
+        const messageSnapshot = await getDocs(allMessagesQuery);
+        const messageCount = messageSnapshot.size;
+
+        if (messageCount >= 30 ) {
+            const oldestMessage = messageSnapshot.docs[0];
+            await deleteDoc(oldestMessage.ref);
+
+            console.log('Oldest message deleted successfully');
+        } else {
+            console.log('No messages to delete');
+        }
+    } catch (error) {
+        console.error('Error deleting oldest message:', error);
+    }
+}
+
+// Add event listener for delete oldest message button
+
+
+
+
+
+const q = query(messagesRef, orderBy('createdAt'), limit(30));
+onSnapshot(q, (querySnapshot) => {
+  const messages = [];
+  querySnapshot.forEach((doc) => {
+    messages.push({ id: doc.id, ...doc.data() });
+  });
+  renderChatRoom(messages);
+});
+
+
+
+  // Function to send message
+  async function sendMessage(formValue) {
+    const { uid, photoURL } = auth.currentUser;
+  
+    try {
+
+    await deleteOldestMessageIfExceedsLimit(); // Check and delete the oldest message if necessary
+      await addDoc(collection(firestore, 'messages'), {
+        text: formValue,
+        createdAt: serverTimestamp(),
+        uid,
+        photoURL
+      });
+    } catch (error) {
+      console.error('Error sending message:', error);
+    }
+  }
+// Event listener for sending messages
+const form = document.createElement('form');
+form.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const input = form.querySelector('input[type="text"]');
+  const formValue = input.value.trim();
+  if (formValue !== '') {
+    sendMessage(formValue);
+    input.value = '';
+  }
+});
+form.innerHTML = `
+  <input type="text" placeholder="Please Enter Something" />
+  <button type="submit">🐤</button>
+`;
+document.getElementById('chatContainer').appendChild(form);
 
 // Add event listener for logout button
 const logoutButton = document.getElementById('logoutButton');
 logoutButton.addEventListener('click', () => {
-    auth.signOut().then(() => {
+    signOut(auth).then(() => {
         // Sign-out successful.
-        alert('User signed out');
-        // Show authentication sections and hide auth success section
-        document.getElementById('authentication').style.display = 'grid';
-        document.getElementById('signupSection').style.display = 'grid';
-        document.querySelector('.authsuccess').style.display = 'none';
+        console.log('User signed out');
+        setupSectionToggle();
     }).catch((error) => {
         // An error happened.
         console.error('Logout error:', error.message);
     });
 });
+document.getElementById('googleSignInButton').addEventListener('click', googleSignInButton);
